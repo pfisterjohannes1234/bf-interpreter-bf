@@ -1,23 +1,76 @@
 /*
-C code to interpret brainfuck.
-It should be writting that ../../c2bf/ can convert it to brainfuck, in a way that makes the
- code data aribtary large
+C code to interpret brainfuck. Written in a way that the interpreter can easely be converted to
+ a brainfuck program, so that we end up with a brainfuck interpreter in brainfuck.
+It is a goal to support arbitary large programs that need arbitary large amounts of data.
 
-And it should written in a way that it is easy to convert to brainfuck.
-We need to do it by hand to have an infinite array for code and data.
+The input is only given by stdin.
+The input should be a brainfuck program.
+Then a '\0' / 0 to mark the end of the brainfuck program
+Then the data for the brainfuck program.
+
+The complete brainfuck program is read before be we start executing
+
+
+There are 2 ways to "compile" (on of them is only preprocessing) the code, controlled by
+ GENERATE_SIMPLE.
+When GENERATE_SIMPLE is set, we can use a c preprocessor to generate a "simpler" (means closer to
+ brainfuck) version.
+When GENERATE_SIMPLE is not set, it generates C code, that supports more features and allows
+ debugging the interpreter.
+
+It should written in a way that it is easy to convert to brainfuck.
+
+That means:
+ - The only data we have is a very large array and one pointer / index to it. Access to that array
+    is only allowed via this pointer / index
+ - We can only increment or decrement the pointer by a specific amount. We can not set the pointer
+ - There are no function calls
+ - There are no pointers
+ - There are no enums nor structs
+ - There are no if, else, for, do{}while(), switch nor goto. Only while loops are allowed
+ - Only while ( <some element of the arra> ) but without any ==, &&, || !=, .... nor negation (!)
+ - There are no strings
+ - No multiplaction, division, |, &, ^, ...
+ - No array access by a non fixed value except the single pointer / index
+
+But this is still allowed:
+ - Setting a element in the array (but only via the single pointer / index that exist )
+ - Character literals
+ - Adding and subtracting a fixed value from a cell or from the pointer / index
+ - Accessing a element in the array with a fixed offset from the pointer
+ - Copy a element of the array to a other element
+ - A cell has enough space for a single char/ byte
+
+The resulting code should be able to handle a infinite array (The C version obviously doesn't have
+ a infinite array, but you could convert it 1:1 in brainfuck and handle other brainfuck programs
+ that need an arbitary amount of data, given the the first interpreter, that interprets the
+ brainfuck who is interpreting a other brainfuck program, supports a infinite array.
+
+
+
+
+It was inspired by the code that c2bf (from here https://github.com/arthaud/c2bf) can handle
+But it turns out c2bf can't probably deal with a infinite array.
+
 */
 
 #define STEP 8
-//#define SIZE (1024*1024*16)
-#define SIZE (1024*1024*16)
 
-#define GENERATE_SIMPLE 0 //Set this when we want to generate code for c2bf
-#define START 80
-#define START_EXTRA 480
+//Set this to 1 when we want to generate code that is easier to convert
+//Set this to 0 when we want to have normal C code with the possibility to debug
+#define GENERATE_SIMPLE 0
 
-int p=START+START_EXTRA;
 
-#if !GENERATE_SIMPLE
+#if GENERATE_SIMPLE
+
+#define DEBUG 0
+#define DEBUG_ADDRESS 0
+
+int p=0;
+
+int data[2];
+
+#else //!GENERATE_SIMPLE
 
 #include <unistd.h>
 #include <execinfo.h>
@@ -28,6 +81,14 @@ int p=START+START_EXTRA;
 #include <string.h>
 #include <signal.h>
 #include <stdlib.h>
+
+
+//#define SIZE (1024*1024*16)
+#define SIZE (1024*1024*16)
+#define START 80
+#define START_EXTRA 480
+
+int p=START+START_EXTRA;
 
 
 
@@ -105,14 +166,6 @@ void catch_pagefault(int signal, siginfo_t *i, void *ignored)
   }
 
 
-
-
-#else // GENERATE_SIMPLE
-
-#define DEBUG 0
-#define DEBUG_ADDRESS 0
-
-int data[2];
 
 #endif // !GENERATE_SIMPLE
 
@@ -229,6 +282,35 @@ State C: Data pointer is to the left of the code pointer:
 #define OS_IF_W  6 //To replace if with while
 
 
+#define IF_START(OFFSET)                         \
+  data[p+OS_IF_W] = data[p+OFFSET];              \
+  while( data[p+OS_IF_W] )                       \
+    {
+
+#define IF_END()                                 \
+    data[p+OS_IF_W] = 0;                         \
+  }                                              \
+
+
+#define IF_EQUAL_START(OFFSET,VALUE)             \
+  data[p+OS_IF_W] = data[p+OFFSET] - VALUE;      \
+  data[p+OS_EQU0] = data[p+OS_IF_W];             \
+  while( data[p+OS_EQU0] )                       \
+    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=1; }    \
+  data[p+OS_IF_W]--;                             \
+  while( data[p+OS_IF_W] )                       \
+    {
+
+#define IF_0(OFFSET)                             \
+  data[p+OS_EQU0] = data[p+OFFSET];              \
+  data[p+OS_IF_W] = data[p+OS_EQU0];             \
+  while( data[p+OS_EQU0] )                       \
+    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=1; }    \
+  data[p+OS_IF_W]--;                             \
+  while( data[p+OS_IF_W] )                       \
+    {
+
+
 //Goes from the code position to the data position. NOOP when we are already at the data location
 #define GO_DATA()                  \
   /* Handle State A */             \
@@ -330,7 +412,7 @@ int main()
       memset(data,0,sizeof data);
     #endif // !GENERATE_SIMPLE
     #if DEBUG_ADDRESS
-      fprintf(stderr,"DATA START %p END %p\n",(void*)data,(void*)data+sizeof data);
+      fprintf(stderr,"DATA START %p END %p\n",(void*)data,(void*)(data+sizeof data));
       struct sigaction a;
       memset(&a,0,sizeof a);
       a.sa_sigaction=catch_pagefault;
@@ -375,98 +457,56 @@ int main()
         //#############
         //# Handle +  # Increment current cell
         //#############
-        data[p+OS_EQU0] = data[p+OS_CODE] - '+';
-        data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
-          { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] )  //if command=='+'
-          {
+        IF_EQUAL_START( OS_CODE, '+' )
             GO_DATA()
             data[p+OS_DATA] = data[p+OS_DATA] + 1;
             GO_CODE()
-            data[p+OS_EQU0] = 0;
-          }
+        IF_END()
 
         //#############
         //# Handle -  # Decrement current cell
         //#############
-        data[p+OS_EQU0] = data[p+OS_CODE] - '-';
-        data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
-          { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] )  //if command=='-'
-          {
+        IF_EQUAL_START( OS_CODE, '-' )
             GO_DATA()
             data[p+OS_DATA] = data[p+OS_DATA] - 1;
             GO_CODE()
-            data[p+OS_EQU0] = 0;
-          }
+        IF_END()
 
         //#############
         //# Handle ,  # Read input to current cell
         //#############
-        data[p+OS_EQU0] = data[p+OS_CODE] - ',';
-        data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
-          { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] )  //if command==','
-          {
+        IF_EQUAL_START( OS_CODE, ',' )
             GO_DATA()
             data[p+OS_DATA] = read_char();
             GO_CODE()
-            data[p+OS_EQU0] = 0;
-          }
+        IF_END()
 
         //#############
         //# Handle .  # output current cell
         //#############
-        data[p+OS_EQU0] = data[p+OS_CODE] - '.';
-        data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
-          { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] )  //if command=='.'
-          {
+        IF_EQUAL_START( OS_CODE, '.' )
             GO_DATA()
             write_char( data[p+OS_DATA] );
             GO_CODE()
-            data[p+OS_EQU0] = 0;
-          }
+          IF_END()
 
         //#############
         //# Handle <  # go a cell to the left (decrement cell pointer)
         //#############
-        data[p+OS_EQU0] = data[p+OS_CODE] - '<';
-        data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
-          { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] )  //if command=='<'
-          {
+        IF_EQUAL_START( OS_CODE, '<' )
             GO_DATA()
             MOVE_DATA_L()
             GO_CODE()
-            data[p+OS_EQU0] = 0;
-          }
+        IF_END()
 
         //#############
         //# Handle >  # go a cell to the right (increment cell pointer)
         //#############
-        data[p+OS_EQU0] = data[p+OS_CODE] - '>';
-        data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
-          { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] ) //if command=='>'
-          {
+        IF_EQUAL_START( OS_CODE, '>' )
             GO_DATA()
             MOVE_DATA_R()
             GO_CODE()
-            data[p+OS_EQU0] = 0;
-          }
+        IF_END()
 
         //#############
         //# Handle [  # jump to the corresponding ] when current cell is 0
@@ -480,14 +520,7 @@ int main()
           {
             GO_DATA()
 
-            //if data[p+OS_DATA] == 0 # i.e. if current cell is 0
-            data[p+OS_EQU0] = data[p+OS_DATA];
-            data[p+OS_IF_W] = data[p+OS_DATA];
-            while( data[p+OS_IF_W] )
-              { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-            data[p+OS_EQU0]--;
-            while( data[p+OS_EQU0] ) //Enter here is cell is 0
-              {
+            IF_0( OS_DATA ) //When cell is 0 goto ]
                 GO_CODE()
                 data[p+OS_DEEP] = 1;
                 while( data[p+OS_DEEP]!=0 )
@@ -500,8 +533,8 @@ int main()
                     data[p+OS_EQU0] = data[p+OS_EQU0] - ']' + '[';
                     if( data[p+OS_EQU0]==0 )  { data[p+OS_DEEP] = data[p+OS_DEEP]-1; }
                   }
-                data[p+OS_EQU0]=0;
-              }
+            IF_END()
+
             GO_CODE()
             data[p+OS_EQU0] = 0;
             data[p+OS_IF_W] = 1;
@@ -518,19 +551,10 @@ int main()
             //#############
             //# Handle ]  # jump to the corresponding [ when current cell is not 0
             //#############
-            data[p+OS_EQU0] = data[p+OS_CODE] - ']';
-            data[p+OS_IF_W] = data[p+OS_EQU0];
-            while( data[p+OS_IF_W] )
-              { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-            data[p+OS_EQU0]--;
-            while( data[p+OS_EQU0] ) //command is ]
-              {
+            IF_EQUAL_START( OS_CODE, ']' )
                 GO_DATA()
 
-                //if data[p+OS_DATA] != 0 # i.e. if current cell is 0
-                data[p+OS_IF_W] = data[p+OS_DATA];
-                while( data[p+OS_IF_W] ) //Enter here is cell is !=0
-                  {
+                IF_START( OS_DATA ) //Jump to [ when cell is not 0
                     GO_CODE()
                     data[p+OS_DEEP] = 1;
                     while( data[p+OS_DEEP]!=0 )
@@ -543,12 +567,9 @@ int main()
                         data[p+OS_EQU0] = data[p+OS_EQU0] - ']' + '[';
                         if( data[p+OS_EQU0]==0 )  { data[p+OS_DEEP] = data[p+OS_DEEP]+1; }
                       }
-                    data[p+OS_IF_W]=0;
-                  }
+                 IF_END()
                 GO_CODE()
-                data[p+OS_EQU0] = 0;
-              }
-            data[p+OS_IF_W] = 0;
+            IF_END()
           }
         MOVE_CODE_R();
       }
