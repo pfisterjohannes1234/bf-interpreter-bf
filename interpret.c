@@ -107,6 +107,7 @@ unsigned char data[SIZE];
 void printContent(unsigned char *data, size_t n, unsigned offset)
   {
     fprintf(stderr,"D: %2u ",offset);
+    for(size_t i=0;i<n;i++)
       {
         unsigned char c = data[i*STEP+offset+START_EXTRA];
         unsigned char p = isprint(c) ? c : ' ';
@@ -280,10 +281,15 @@ State C: Data pointer is to the left of the code pointer:
 #define OS_GOCL  5 //1 if code is to the left
 #define OS_IF_W  6 //To replace if with while
 
+//Used to change between while(n!=0) and while(n)
+//The later is simpler and should in theory be prefered. But c2bf doesn't support that for some
+// strange reason. But when we create our own compiler, we may only support while(n) to make it 
+// simpler
+#define WHILE(n) while(n)
 
 #define IF_START(OFFSET)                         \
   data[p+OS_IF_W] = data[p+OFFSET];              \
-  while( data[p+OS_IF_W]!=0 )                    \
+  WHILE( data[p+OS_IF_W] )                       \
     {
 
 #define IF_END()                                 \
@@ -294,36 +300,36 @@ State C: Data pointer is to the left of the code pointer:
 #define IF_EQUAL_START(OFFSET,VALUE)             \
   data[p+OS_EQU0] = data[p+OFFSET] - VALUE;      \
   data[p+OS_IF_W] = 1;                           \
-  while( data[p+OS_EQU0]!=0 )                       \
+  WHILE( data[p+OS_EQU0] )                       \
     { data[p+OS_EQU0]=0; data[p+OS_IF_W]=0; }    \
-  while( data[p+OS_IF_W]!=0 )                       \
+  WHILE( data[p+OS_IF_W] )                       \
     {
 
 #define IF_0(OFFSET)                             \
   data[p+OS_EQU0] = data[p+OFFSET];              \
   data[p+OS_IF_W] = 1;                           \
-  while( data[p+OS_EQU0]!=0 )                       \
+  WHILE( data[p+OS_EQU0] )                       \
     { data[p+OS_EQU0]=0; data[p+OS_IF_W]=0; }    \
-  while( data[p+OS_IF_W]!=0 )                       \
+  WHILE( data[p+OS_IF_W] )                       \
     {
 
 
 //Goes from the code position to the data position. NOOP when we are already at the data location
 #define GO_DATA()                  \
   /* Handle State A */             \
-  while( data[p+STEP+OS_GOCL]!=0 ) \
+  WHILE( data[p+STEP+OS_GOCL] )    \
     { p = p+STEP; }                \
   /* Handle State C */             \
-  while( data[p-STEP+OS_GODL]!=0 ) \
+  WHILE( data[p-STEP+OS_GODL] )    \
           { p = p-STEP; }          \
 
 //Goes from the data position to the code position. NOOP when we are already at the code location
 #define GO_CODE()                  \
   /* Handle State A */             \
-  while( data[p-STEP+OS_GOCL]!=0 ) \
+  WHILE( data[p-STEP+OS_GOCL] )    \
     { p = p-STEP; }                \
   /* Handle State C */             \
-  while( data[p+STEP+OS_GODL]!=0 ) \
+  WHILE( data[p+STEP+OS_GODL] )    \
           { p = p+STEP; }          \
 
 //Move the data pointer 1 to the right (increment). Use it when we are already at the data pointer
@@ -332,7 +338,7 @@ State C: Data pointer is to the left of the code pointer:
   data[p+OS_IF_W] = data[p+OS_GODL];             \
   data[p+OS_EQU0]=1;                             \
   /* if State C (OS_GODL is not 0)*/             \
-  while( data[p+OS_IF_W]!=0 )                       \
+  WHILE( data[p+OS_IF_W] )                       \
     {                                            \
       data[p+OS_GODL]=0;                         \
       p=p+STEP;                                  \
@@ -346,7 +352,7 @@ State C: Data pointer is to the left of the code pointer:
       data[p+OS_IF_W]=0;                         \
     }                                            \
   /* else (state wasn't C) */                    \
-  while( data[p+OS_EQU0]!=0 )                       \
+  WHILE( data[p+OS_EQU0] )                       \
     { /*New state is A */                        \
       data[p+OS_GOCL]=1;                         \
       p=p+STEP;                                  \
@@ -360,7 +366,7 @@ State C: Data pointer is to the left of the code pointer:
   data[p+OS_IF_W] = data[p+OS_GOCL];             \
   data[p+OS_EQU0]=1;                             \
   /* if State A (OS_GOCL is not 0)*/             \
-  while( data[p+OS_IF_W]!=0 )                       \
+  WHILE( data[p+OS_IF_W] )                       \
     {                                            \
       data[p+OS_GOCL]=0;                         \
       p=p-STEP;                                  \
@@ -374,7 +380,7 @@ State C: Data pointer is to the left of the code pointer:
       data[p+OS_IF_W]=0;                         \
     }                                            \
   /* else (state wasn't A) */                    \
-  while( data[p+OS_EQU0]!=0 )                       \
+  WHILE( data[p+OS_EQU0] )                       \
     { /*New state is C */                        \
       data[p+OS_GODL]=1;                         \
       p=p-STEP;                                  \
@@ -388,7 +394,7 @@ State C: Data pointer is to the left of the code pointer:
   data[p+OS_IF_W] = data[p+OS_GOCL];             \
   data[p+OS_EQU0]=1;                             \
   /* if State A (OS_GOCL is not 0)*/             \
-  while( data[p+OS_IF_W]!=0 )                       \
+  WHILE( data[p+OS_IF_W] )                       \
     {                                            \
       data[p+OS_GOCL]=0;                         \
       p=p+STEP;                                  \
@@ -402,7 +408,7 @@ State C: Data pointer is to the left of the code pointer:
       data[p+OS_IF_W]=0;                         \
     }                                            \
   /* else (state wasn't A) */                    \
-  while( data[p+OS_EQU0]!=0 )                       \
+  WHILE( data[p+OS_EQU0] )                       \
     { /*New state is C */                        \
       data[p+OS_GODL]=1;                         \
       p=p+STEP;                                  \
@@ -417,7 +423,7 @@ State C: Data pointer is to the left of the code pointer:
   data[p+OS_IF_W] = data[p+OS_GODL];             \
   data[p+OS_EQU0]=1;                             \
   /* if State C (OS_GODL is not 0)*/             \
-  while( data[p+OS_IF_W]!=0 )                       \
+  WHILE( data[p+OS_IF_W] )                       \
     {                                            \
       data[p+OS_GODL]=0;                         \
       p=p-STEP;                                  \
@@ -431,7 +437,7 @@ State C: Data pointer is to the left of the code pointer:
       data[p+OS_IF_W]=0;                         \
     }                                            \
   /* else (state wasn't C) */                    \
-  while( data[p+OS_EQU0]!=0 )                       \
+  WHILE( data[p+OS_EQU0] )                       \
     { /*New state is A */                        \
       data[p+OS_GOCL]=1;                         \
       p=p-STEP;                                  \
@@ -468,18 +474,18 @@ int main()
     //We read till we read a 0. 0 marks the end of code. After that we would start to read data.
     // But that is only done when the brainfuck code says so (i.e. uses the , command)
     data[p+OS_CODE] = read_char();
-    while( data[p+OS_CODE]!=0 )
+    WHILE( data[p+OS_CODE] )
       {
         p = p + STEP;
         data[p+OS_CODE] = read_char();
       }
     p = p - STEP;
-    while( data[p+OS_CODE]!=0 ) //Go back to cell 0
+    WHILE( data[p+OS_CODE] ) //Go back to cell 0
       { p = p - STEP; }
     p = p + STEP;
 
     //We loop till we reach the end of the code
-    while( data[p+OS_CODE]!=0 )
+    WHILE( data[p+OS_CODE] )
       {
         #if DEBUG
           fprintf(stderr,"p       %*u\n",(p-START_EXTRA)*6/8,p);
@@ -549,17 +555,17 @@ int main()
         //#############
         data[p+OS_EQU0] = data[p+OS_CODE] - '[';
         data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W]!=0 )
+        WHILE( data[p+OS_IF_W] )
           { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
         data[p+OS_EQU0] = data[p+OS_EQU0]-1;
-        while( data[p+OS_EQU0]!=0 ) // command is [
+        WHILE( data[p+OS_EQU0] ) // command is [
           {
             GO_DATA()
 
             IF_0( OS_DATA ) //When cell is 0 goto ]
                 GO_CODE()
                 data[p+OS_DEEP] = 1;
-                while( data[p+OS_DEEP]!=0 )
+                WHILE( data[p+OS_DEEP] )
                   {
                     data[p+STEP+OS_DEEP] = data[p+OS_DEEP];
                     MOVE_CODE_R()
@@ -585,7 +591,7 @@ int main()
         //Technically not needed, since we skip this one when cell value is 0 but that takes a long
         // time
         data[p+OS_IF_W] = data[p+OS_IF_W]-1;
-        while( data[p+OS_IF_W]!=0 )
+        WHILE( data[p+OS_IF_W] )
           {
             //#############
             //# Handle ]  # jump to the corresponding [ when current cell is not 0
@@ -596,7 +602,7 @@ int main()
                 IF_START( OS_DATA ) //Jump to [ when cell is not 0
                     GO_CODE()
                     data[p+OS_DEEP] = 1;
-                    while( data[p+OS_DEEP]!=0 )
+                    WHILE( data[p+OS_DEEP] )
                       {
                         data[p-STEP+OS_DEEP] = data[p+OS_DEEP];
                         MOVE_CODE_L()
