@@ -58,7 +58,7 @@ But it turns out c2bf can't probably deal with a infinite array.
 
 //Set this to 1 when we want to generate code that is easier to convert
 //Set this to 0 when we want to have normal C code with the possibility to debug
-#define GENERATE_SIMPLE 0
+#define GENERATE_SIMPLE 1
 
 
 #if GENERATE_SIMPLE
@@ -107,7 +107,6 @@ unsigned char data[SIZE];
 void printContent(unsigned char *data, size_t n, unsigned offset)
   {
     fprintf(stderr,"D: %2u ",offset);
-    for(size_t i=0;i<n;i++)
       {
         unsigned char c = data[i*STEP+offset+START_EXTRA];
         unsigned char p = isprint(c) ? c : ' ';
@@ -233,9 +232,9 @@ State A: Data pointer is to the right of the code pointer:
 +---+---+---+---+---+
 ##################### < Cells with offset 0 - 3 and 6-7. We don't care about them for now
 +---+---+---+---+---+
-| 0 | 0 | 0 | 0 | 0 | n*STEP+4
+| 0 | 0 | 0 | 0 | 0 | n*STEP+4 / OS_GODL
 +---+---+---+---+---+
-| 0 | 1 | 1 | 1 | 0 | n*STEP+5
+| 0 | 1 | 1 | 1 | 0 | n*STEP+5 / OS_GOCL
 +---+---+---+---+---+
               ^
               | Data pointer
@@ -247,9 +246,9 @@ State B: Data pointer and code pointer point to the same block
 +---+---+---+---+---+
 ##################### < Cells with offset 0 - 3 and 6-7. We don't care about them for now
 +---+---+---+---+---+
-| 0 | 0 | 0 | 0 | 0 | n*STEP+4
+| 0 | 0 | 0 | 0 | 0 | n*STEP+4 / OS_GODL
 +---+---+---+---+---+
-| 0 | 0 | 0 | 0 | 0 | n*STEP+5
+| 0 | 0 | 0 | 0 | 0 | n*STEP+5 / OS_GOCL
 +---+---+---+---+---+
       ^
       | Data pointer
@@ -262,9 +261,9 @@ State C: Data pointer is to the left of the code pointer:
 +---+---+---+---+---+
 ##################### < Cells with offset 0 - 3 and 6-7. We don't care about them for now
 +---+---+---+---+---+
-| 0 | 1 | 1 | 1 | 0 | n*STEP+4
+| 0 | 1 | 1 | 1 | 0 | n*STEP+4 / OS_GODL
 +---+---+---+---+---+
-| 0 | 0 | 0 | 0 | 0 | n*STEP+5
+| 0 | 0 | 0 | 0 | 0 | n*STEP+5 / OS_GOCL
 +---+---+---+---+---+
       ^
       | Data pointer
@@ -284,7 +283,7 @@ State C: Data pointer is to the left of the code pointer:
 
 #define IF_START(OFFSET)                         \
   data[p+OS_IF_W] = data[p+OFFSET];              \
-  while( data[p+OS_IF_W] )                       \
+  while( data[p+OS_IF_W]!=0 )                    \
     {
 
 #define IF_END()                                 \
@@ -293,21 +292,19 @@ State C: Data pointer is to the left of the code pointer:
 
 
 #define IF_EQUAL_START(OFFSET,VALUE)             \
-  data[p+OS_IF_W] = data[p+OFFSET] - VALUE;      \
-  data[p+OS_EQU0] = data[p+OS_IF_W];             \
-  while( data[p+OS_EQU0] )                       \
-    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=1; }    \
-  data[p+OS_IF_W]--;                             \
-  while( data[p+OS_IF_W] )                       \
+  data[p+OS_EQU0] = data[p+OFFSET] - VALUE;      \
+  data[p+OS_IF_W] = 1;                           \
+  while( data[p+OS_EQU0]!=0 )                       \
+    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=0; }    \
+  while( data[p+OS_IF_W]!=0 )                       \
     {
 
 #define IF_0(OFFSET)                             \
   data[p+OS_EQU0] = data[p+OFFSET];              \
-  data[p+OS_IF_W] = data[p+OS_EQU0];             \
-  while( data[p+OS_EQU0] )                       \
-    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=1; }    \
-  data[p+OS_IF_W]--;                             \
-  while( data[p+OS_IF_W] )                       \
+  data[p+OS_IF_W] = 1;                           \
+  while( data[p+OS_EQU0]!=0 )                       \
+    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=0; }    \
+  while( data[p+OS_IF_W]!=0 )                       \
     {
 
 
@@ -329,79 +326,118 @@ State C: Data pointer is to the left of the code pointer:
   while( data[p+STEP+OS_GODL]!=0 ) \
           { p = p+STEP; }          \
 
-//Move the data pointer 1 to the right (increment). Use it when we are already at the data pointer location
-#define MOVE_DATA_R()                      \
-  if( data[p+OS_GODL]==0 ) /* State A||B */\
-    {                                      \
-      data[p+OS_GOCL]=1;                   \
-      p=p+STEP;                            \
-      data[p+OS_GOCL]=1;                   \
-    }                                      \
-  else /* State C */                       \
-    {                                      \
-      data[p+OS_GODL]=0;                   \
-      p=p+STEP;                            \
-      if( data[p+STEP+OS_GODL]==0 )        \
-        { /* new state is B */             \
-          data[p+OS_GODL]=0;               \
-        }                                  \
-    }                                      \
+//Move the data pointer 1 to the right (increment). Use it when we are already at the data pointer
+// location. Use it for command >
+#define MOVE_DATA_R()                            \
+  data[p+OS_IF_W] = data[p+OS_GODL];             \
+  data[p+OS_EQU0]=1;                             \
+  /* if State C (OS_GODL is not 0)*/             \
+  while( data[p+OS_IF_W]!=0 )                       \
+    {                                            \
+      data[p+OS_GODL]=0;                         \
+      p=p+STEP;                                  \
+      IF_0( OS_GODL+STEP ) /* new state is B*/   \
+          data[p+OS_GODL]=0;                     \
+      IF_END()                                   \
+      /*Don't execute the next while */          \
+      /* to simulate a else statement */         \
+      data[p+OS_EQU0]=0;                         \
+      /* End while to simulate if*/              \
+      data[p+OS_IF_W]=0;                         \
+    }                                            \
+  /* else (state wasn't C) */                    \
+  while( data[p+OS_EQU0]!=0 )                       \
+    { /*New state is A */                        \
+      data[p+OS_GOCL]=1;                         \
+      p=p+STEP;                                  \
+      data[p+OS_GOCL]=1;                         \
+      data[p+OS_EQU0]=0;                         \
+    }                                            \
 
-//Move the data pointer 1 to the left (decrement). Use it when we are already at the data pointer location
-#define MOVE_DATA_L()                      \
-  if( data[p+OS_GOCL]==0 ) /* State B||C */\
-    {                                      \
-      data[p+OS_GODL]=1;                   \
-      p=p-STEP;                            \
-      data[p+OS_GODL]=1;                   \
-    }                                      \
-  else /* State A */                       \
-    {                                      \
-      data[p+OS_GOCL]=0;                   \
-      p=p-STEP;                            \
-      if( data[p-STEP+OS_GOCL]==0 )        \
-        { /* new state is B */             \
-          data[p+OS_GOCL]=0;               \
-        }                                  \
-    }                                      \
+//Move the data pointer 1 to the left (decrement). Use it when we are already at the data pointer
+// location. Use it for command <
+#define MOVE_DATA_L()                            \
+  data[p+OS_IF_W] = data[p+OS_GOCL];             \
+  data[p+OS_EQU0]=1;                             \
+  /* if State A (OS_GOCL is not 0)*/             \
+  while( data[p+OS_IF_W]!=0 )                       \
+    {                                            \
+      data[p+OS_GOCL]=0;                         \
+      p=p-STEP;                                  \
+      IF_0( OS_GOCL-STEP ) /* new state is B*/   \
+          data[p+OS_GOCL]=0;                     \
+      IF_END()                                   \
+      /*Don't execute the next while */          \
+      /* to simulate a else statement */         \
+      data[p+OS_EQU0]=0;                         \
+      /* End while to simulate if*/              \
+      data[p+OS_IF_W]=0;                         \
+    }                                            \
+  /* else (state wasn't A) */                    \
+  while( data[p+OS_EQU0]!=0 )                       \
+    { /*New state is C */                        \
+      data[p+OS_GODL]=1;                         \
+      p=p-STEP;                                  \
+      data[p+OS_GODL]=1;                         \
+      data[p+OS_EQU0]=0;                         \
+    }                                            \
 
-//Move the code pointer 1 to the right (increment). Use it when we are already at the code pointer location
-//Very similar to MOVE_DATA_R but for the code pointer
-#define MOVE_CODE_R()                      \
-  if( data[p+OS_GOCL]==0 ) /* State B||C */\
-    {                                      \
-      data[p+OS_GODL]=1;                   \
-      p=p+STEP;                            \
-      data[p+OS_GODL]=1;                   \
-    }                                      \
-  else /* State A */                       \
-    {                                      \
-      data[p+OS_GOCL]=0;                   \
-      p=p+STEP;                            \
-      if( data[p+STEP+OS_GOCL]==0 )        \
-        { /* new state is B */             \
-          data[p+OS_GOCL]=0;               \
-        }                                  \
-    }                                      \
+//Move the code pointer 1 to the right (increment). Use it when we are already at the data pointer
+// location. use it when go from [ back to the ] or when finish the current command
+#define MOVE_CODE_R()                            \
+  data[p+OS_IF_W] = data[p+OS_GOCL];             \
+  data[p+OS_EQU0]=1;                             \
+  /* if State A (OS_GOCL is not 0)*/             \
+  while( data[p+OS_IF_W]!=0 )                       \
+    {                                            \
+      data[p+OS_GOCL]=0;                         \
+      p=p+STEP;                                  \
+      IF_0( OS_GOCL+STEP ) /* new state is B*/   \
+          data[p+OS_GOCL]=0;                     \
+      IF_END()                                   \
+      /*Don't execute the next while */          \
+      /* to simulate a else statement */         \
+      data[p+OS_EQU0]=0;                         \
+      /* End while to simulate if*/              \
+      data[p+OS_IF_W]=0;                         \
+    }                                            \
+  /* else (state wasn't A) */                    \
+  while( data[p+OS_EQU0]!=0 )                       \
+    { /*New state is C */                        \
+      data[p+OS_GODL]=1;                         \
+      p=p+STEP;                                  \
+      data[p+OS_GODL]=1;                         \
+      data[p+OS_EQU0]=0;                         \
+    }                                            \
 
-//Move the code pointer 1 to the left (decrement). Use it when we are already at the code pointer location
-//Very similar to MOVE_DATA_L but for the code pointer
-#define MOVE_CODE_L()                      \
-  if( data[p+OS_GODL]==0 ) /* State A||B */\
-    {                                      \
-      data[p+OS_GOCL]=1;                   \
-      p=p-STEP;                            \
-      data[p+OS_GOCL]=1;                   \
-    }                                      \
-  else /* State C */                       \
-    {                                      \
-      data[p+OS_GODL]=0;                   \
-      p=p-STEP;                            \
-      if( data[p-STEP+OS_GODL]==0 )        \
-        { /* new state is B */             \
-          data[p+OS_GODL]=0;               \
-        }                                  \
-    }                                      \
+
+//Move the code pointer 1 to the left (decrement). Use it when we are already at the data pointer
+// location. use it when go from ] back to the [
+#define MOVE_CODE_L()                            \
+  data[p+OS_IF_W] = data[p+OS_GODL];             \
+  data[p+OS_EQU0]=1;                             \
+  /* if State C (OS_GODL is not 0)*/             \
+  while( data[p+OS_IF_W]!=0 )                       \
+    {                                            \
+      data[p+OS_GODL]=0;                         \
+      p=p-STEP;                                  \
+      IF_0( OS_GODL-STEP ) /* new state is B*/   \
+          data[p+OS_GODL]=0;                     \
+      IF_END()                                   \
+      /*Don't execute the next while */          \
+      /* to simulate a else statement */         \
+      data[p+OS_EQU0]=0;                         \
+      /* End while to simulate if*/              \
+      data[p+OS_IF_W]=0;                         \
+    }                                            \
+  /* else (state wasn't C) */                    \
+  while( data[p+OS_EQU0]!=0 )                       \
+    { /*New state is A */                        \
+      data[p+OS_GOCL]=1;                         \
+      p=p-STEP;                                  \
+      data[p+OS_GOCL]=1;                         \
+      data[p+OS_EQU0]=0;                         \
+    }                                            \
 
 
 #if !GENERATE_SIMPLE
@@ -513,10 +549,10 @@ int main()
         //#############
         data[p+OS_EQU0] = data[p+OS_CODE] - '[';
         data[p+OS_IF_W] = data[p+OS_EQU0];
-        while( data[p+OS_IF_W] )
+        while( data[p+OS_IF_W]!=0 )
           { data[p+OS_EQU0]=1; data[p+OS_IF_W]=0; }
-        data[p+OS_EQU0]--;
-        while( data[p+OS_EQU0] ) // command is [
+        data[p+OS_EQU0] = data[p+OS_EQU0]-1;
+        while( data[p+OS_EQU0]!=0 ) // command is [
           {
             GO_DATA()
 
@@ -526,12 +562,15 @@ int main()
                 while( data[p+OS_DEEP]!=0 )
                   {
                     data[p+STEP+OS_DEEP] = data[p+OS_DEEP];
-                    MOVE_CODE_R();
+                    MOVE_CODE_R()
 
-                    data[p+OS_EQU0] = data[p+OS_CODE] - '[';
-                    if( data[p+OS_EQU0]==0 )       { data[p+OS_DEEP] = data[p+OS_DEEP]+1; }
-                    data[p+OS_EQU0] = data[p+OS_EQU0] - ']' + '[';
-                    if( data[p+OS_EQU0]==0 )  { data[p+OS_DEEP] = data[p+OS_DEEP]-1; }
+                    IF_EQUAL_START( OS_CODE, '[' )
+                      data[p+OS_DEEP] = data[p+OS_DEEP]+1;
+                    IF_END()
+
+                    IF_EQUAL_START( OS_CODE, ']' )
+                      data[p+OS_DEEP] = data[p+OS_DEEP]-1;
+                    IF_END()
                   }
             IF_END()
 
@@ -545,8 +584,8 @@ int main()
         //But there is no need to check it again
         //Technically not needed, since we skip this one when cell value is 0 but that takes a long
         // time
-        data[p+OS_IF_W]--;
-        while( data[p+OS_IF_W] )
+        data[p+OS_IF_W] = data[p+OS_IF_W]-1;
+        while( data[p+OS_IF_W]!=0 )
           {
             //#############
             //# Handle ]  # jump to the corresponding [ when current cell is not 0
@@ -560,18 +599,21 @@ int main()
                     while( data[p+OS_DEEP]!=0 )
                       {
                         data[p-STEP+OS_DEEP] = data[p+OS_DEEP];
-                        MOVE_CODE_L();
+                        MOVE_CODE_L()
 
-                        data[p+OS_EQU0] = data[p+OS_CODE] - '[';
-                        if( data[p+OS_EQU0]==0 )       { data[p+OS_DEEP] = data[p+OS_DEEP]-1; }
-                        data[p+OS_EQU0] = data[p+OS_EQU0] - ']' + '[';
-                        if( data[p+OS_EQU0]==0 )  { data[p+OS_DEEP] = data[p+OS_DEEP]+1; }
+                        IF_EQUAL_START( OS_CODE, '[' )
+                          data[p+OS_DEEP] = data[p+OS_DEEP]-1;
+                        IF_END()
+
+                        IF_EQUAL_START( OS_CODE, ']' )
+                          data[p+OS_DEEP] = data[p+OS_DEEP]+1;
+                        IF_END()
                       }
                  IF_END()
                 GO_CODE()
             IF_END()
           }
-        MOVE_CODE_R();
+        MOVE_CODE_R()
       }
     #if DEBUG
       fprintf(stderr,"Q       %*u\n",(p-START_EXTRA)*6/8,p);
