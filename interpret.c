@@ -58,7 +58,9 @@ But it turns out c2bf can't probably deal with a infinite array.
 
 //Set this to 1 when we want to generate code that is easier to convert
 //Set this to 0 when we want to have normal C code with the possibility to debug
-#define GENERATE_SIMPLE 1
+#ifndef GENERATE_SIMPLE
+  #define GENERATE_SIMPLE 0
+#endif //GENERATE_SIMPLE
 
 
 #if GENERATE_SIMPLE
