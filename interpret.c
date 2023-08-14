@@ -41,12 +41,12 @@ But this is still allowed:
  - Copy a element of the array to a other element
  - A cell has enough space for a single char/ byte
 
+./convert.py should be able to convert the "simpler" generated code to brainfuck.
+
 The resulting code should be able to handle a infinite array (The C version obviously doesn't have
  a infinite array, but you could convert it 1:1 in brainfuck and handle other brainfuck programs
  that need an arbitary amount of data, given the the first interpreter, that interprets the
- brainfuck who is interpreting a other brainfuck program, supports a infinite array.
-
-
+ brainfuck who is interpreting a other brainfuck program, supports a infinite array).
 
 
 It was inspired by the code that c2bf (from here https://github.com/arthaud/c2bf) can handle
@@ -55,6 +55,8 @@ So we created our own version specially crafted to convert this source code, see
 
 */
 
+//We split the (infinite) array into blocks of size 8. Each block can handle one data cell and
+// command of code. See further down for a description of the 8 cells in a block
 #define STEP 8
 
 //Set this to 1 when we want to generate code that is easier to convert
@@ -92,9 +94,7 @@ int p=START+START_EXTRA;
 
 
 
-
 #define write_char putchar
-//#define read_char  getchar
 
 #define DEBUG 0
 #define DEBUG_ADDRESS 1
@@ -130,8 +130,7 @@ unsigned char read_char()
     int i = getchar();
     if(i<0)
       {
-        //return 0; //-1;
-        return -0;
+        return 0;
       }
     return i;
   }
@@ -206,14 +205,16 @@ It is bascially a 1D array that is used as 2D array.
 right: higher address
 left:  lower address
 
-We need to keep track of 2 pointer. One pointer for data and one pointer for for code.
-But we only have access to a single array as data.
+We need to keep track of 2 pointers. One pointer for data and one pointer for for code.
+But we only have access to a single array as data and we always point to exactly 1 location in that
+ array.
 
 Maybe it would be possible to store a index in a cell and use a specific amount of < or >
- to go to the correct position. But that sounds complicated for infinite arrays so we use
- 2 cells per block to indicate if the current data position is to the right of the current
- position or not, i.e. if the data pointer points to a block that is further to the right.
-Similar, there is 1 cell per block that indicates if the the current code pointer is to the right.
+ to go to the correct position. But that sounds complicated for infinite arrays so we don't do that.
+Instead, we use 2 cells per block to indicate if the current data position is to the left of the 
+ current position or not, i.e. if the data pointer points to a block that is further to the left
+ (left means index is lower/smaller).
+Similar, there is 1 cell per block that indicates if the the current code pointer is to the left.
 
 n*STEP + 4 is filled with some 1 when the data pointer points left of where the code pointer points
  to. And all 0 in every other case
@@ -282,10 +283,11 @@ State C: Data pointer is to the left of the code pointer:
 
 //Used to change between while(n!=0) and while(n)
 //The later is simpler and should in theory be prefered. But c2bf doesn't support that for some
-// strange reason. But when we create our own compiler, we may only support while(n) to make it 
+// strange reason. But we created our own compiler, where we only support while(n) to make it
 // simpler
 #define WHILE(n) while(n)
 
+//Macros to create code that emulates different versions of if's
 #define IF_START(OFFSET)                         \
   data[p+OS_IF_W] = data[p+OFFSET];              \
   WHILE( data[p+OS_IF_W] )                       \
@@ -452,7 +454,12 @@ int main()
     #if !GENERATE_SIMPLE
       memset(data,0,sizeof data);
     #else
-      p=p+8;
+      //To avoid moving to the left from the start (only works when interpetet code also
+      // doesn't move more left then the start)
+      //We move one block so that the value in this blocks stays 0 and when we go back, after 
+      // reading the complete code, we stop here without ever touching negative cells (cells that
+      // have a lower index than the start cell)
+      p=p+STEP;
     #endif // GENERATE_SIMPLE
     #if DEBUG_ADDRESS
       fprintf(stderr,"DATA START %p END %p\n",(void*)data,(void*)(data+sizeof data));
@@ -620,6 +627,8 @@ int main()
                 GO_CODE()
             IF_END()
           }
+
+        //Go to the next command
         MOVE_CODE_R()
       }
     #if DEBUG
