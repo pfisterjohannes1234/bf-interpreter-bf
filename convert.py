@@ -204,13 +204,13 @@ def handleAssignment(statements):
 
   if startOffset is None:
     goto(targetOffset)
-    print('[-]'+('+' if add>0 else '-')*abs(add))
+    print('[-]'+('+' if add>0 else '-')*abs(add),end='')
     goto(-targetOffset)
     return
 
   if startOffset == targetOffset:
     goto(targetOffset)
-    print( ('+' if add>0 else '-')*abs(add) )
+    print( ('+' if add>0 else '-')*abs(add), end='' )
     goto(-targetOffset)
     return
 
@@ -218,26 +218,26 @@ def handleAssignment(statements):
   #After that we copy cell 7 to source cell
   #And after that we may need to add/substract a fixed value
   goto(targetOffset)
-  print('[-]')
+  print('[-]', end='')
   goto(-targetOffset+startOffset)
-  print('[')
-  print('-')
+  print('[', end='')
+  print('-', end='')
   goto(-startOffset+7)
-  print('+')
+  print('+', end='')
   goto(-7+targetOffset)
-  print('+')
+  print('+', end='')
   goto(-targetOffset+startOffset)
-  print(']')
+  print(']', end='')
   goto(+7-startOffset)
-  print('[')
-  print('-')
+  print('[', end='')
+  print('-', end='')
   goto(-7+startOffset)
-  print('+')
+  print('+', end='')
   goto(-startOffset+7)
-  print(']')
+  print(']', end='')
   if add:
     goto(targetOffset-7)
-    print(('+' if add>0 else '-')*abs(add))
+    print(('+' if add>0 else '-')*abs(add), end='')
     goto(-targetOffset)
   else:
     goto(-7)
@@ -269,7 +269,11 @@ for line,i in enumerate(sys.stdin):
   try:
     #for e in i.split():
     for e in re.split('([^a-zA-Z0-9_])',i):
+      line=0
+      if '\n' in e:
+        line =1
       statement = addElementStatement(statement,e)
+      if line: print("")
   except SyntaxError as e:
     e.setLine(line+1)
     raise
