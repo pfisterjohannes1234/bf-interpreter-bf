@@ -18,6 +18,8 @@ astyle --style=gnu --indent=spaces=2 --add-brackets --indent-preproc-cond ./inte
 rm ./interpret_.c.orig || true
 
 python3 ./convert.py < ./interpret_.c > crazy.bf
-tr -cd "+-,.[]<>"  < crazy.bf > crazy_minimal.bf
+#create crazy_minimal.bf with only valid code characters. Note: tr doesn't accept every order but
+# '][+,.><-' seems to work
+tr -cd '][+,.><-'  < crazy.bf > crazy_minimal.bf
 
 
