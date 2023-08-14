@@ -51,6 +51,7 @@ The resulting code should be able to handle a infinite array (The C version obvi
 
 It was inspired by the code that c2bf (from here https://github.com/arthaud/c2bf) can handle
 But it turns out c2bf can't probably deal with a infinite array.
+So we created our own version specially crafted to convert this source code, see ./convert.py
 
 */
 
@@ -299,7 +300,7 @@ State C: Data pointer is to the left of the code pointer:
   data[p+OS_EQU0] = data[p+OFFSET] - VALUE;      \
   data[p+OS_IF_W] = 1;                           \
   WHILE( data[p+OS_EQU0] )                       \
-    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=0; }    \
+    { data[p+OS_EQU0]=0; data[p+OS_IF_W]--; }    \
   WHILE( data[p+OS_IF_W] )                       \
     {
 
@@ -307,7 +308,7 @@ State C: Data pointer is to the left of the code pointer:
   data[p+OS_EQU0] = data[p+OFFSET];              \
   data[p+OS_IF_W] = 1;                           \
   WHILE( data[p+OS_EQU0] )                       \
-    { data[p+OS_EQU0]=0; data[p+OS_IF_W]=0; }    \
+    { data[p+OS_EQU0]=0; data[p+OS_IF_W]--; }    \
   WHILE( data[p+OS_IF_W] )                       \
     {
 
@@ -338,7 +339,7 @@ State C: Data pointer is to the left of the code pointer:
   /* if State C (OS_GODL is not 0)*/             \
   WHILE( data[p+OS_IF_W] )                       \
     {                                            \
-      data[p+OS_GODL]=0;                         \
+      data[p+OS_GODL]--;                         \
       p=p+STEP;                                  \
       IF_0( OS_GODL+STEP ) /* new state is B*/   \
           data[p+OS_GODL]=0;                     \
@@ -354,7 +355,7 @@ State C: Data pointer is to the left of the code pointer:
     { /*New state is A */                        \
       data[p+OS_GOCL]=1;                         \
       p=p+STEP;                                  \
-      data[p+OS_GOCL]=1;                         \
+      data[p+OS_GOCL]++;                         \
       data[p+OS_EQU0]=0;                         \
     }                                            \
 
@@ -366,7 +367,7 @@ State C: Data pointer is to the left of the code pointer:
   /* if State A (OS_GOCL is not 0)*/             \
   WHILE( data[p+OS_IF_W] )                       \
     {                                            \
-      data[p+OS_GOCL]=0;                         \
+      data[p+OS_GOCL]--;                         \
       p=p-STEP;                                  \
       IF_0( OS_GOCL-STEP ) /* new state is B*/   \
           data[p+OS_GOCL]=0;                     \
@@ -382,7 +383,7 @@ State C: Data pointer is to the left of the code pointer:
     { /*New state is C */                        \
       data[p+OS_GODL]=1;                         \
       p=p-STEP;                                  \
-      data[p+OS_GODL]=1;                         \
+      data[p+OS_GODL]++;                         \
       data[p+OS_EQU0]=0;                         \
     }                                            \
 
