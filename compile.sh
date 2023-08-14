@@ -1,4 +1,9 @@
 #!/bin/bash
+
+#Generate a compiled program from interpret.c This should be able to interpret brainfuck code
+#Intended to debug the interpreter logic, not very usefull as normal brainfuck interpreter 
+# (Slower and less flexible than other interpreters)
+
 set -eu
 
 scriptError()

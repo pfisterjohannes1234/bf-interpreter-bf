@@ -1,4 +1,9 @@
 #!/bin/bash
+
+#Script to generates the brainfuck code, so that there is a brainfuck interpreter written in 
+# brainfuck. And it compiles interpret.c to a native running interpreter
+#The output files are crazy.bf and crazy_minimal.bf
+
 set -eu
 
 scriptError()
@@ -22,4 +27,5 @@ python3 ./convert.py < ./interpret_.c > crazy.bf
 # '][+,.><-' seems to work
 tr -cd '][+,.><-'  < crazy.bf > crazy_minimal.bf
 
+bash ./compile.sh
 
