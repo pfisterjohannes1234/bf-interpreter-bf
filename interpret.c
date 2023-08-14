@@ -68,10 +68,6 @@ But it turns out c2bf can't probably deal with a infinite array.
 #define DEBUG 0
 #define DEBUG_ADDRESS 0
 
-int p=0;
-
-int data[2];
-
 #else //!GENERATE_SIMPLE
 
 #include <unistd.h>
@@ -198,7 +194,7 @@ It is bascially a 1D array that is used as 2D array.
 |  ?  | data[n*STEP+6] intendet to convert if to while. All while( data[p*STEP+6] ) means
 |     |  if( data[p*STEP+6] ).  Sometimes combined with n*STEP+1
 +-----+
-|  ?  | data[n*STEP+7] not used yet.
+|  ?  | data[n*STEP+7] used to copy variables. see convert.py
 +-----+
 
 
@@ -454,7 +450,9 @@ int main()
 #endif
     #if !GENERATE_SIMPLE
       memset(data,0,sizeof data);
-    #endif // !GENERATE_SIMPLE
+    #else
+      p=p+8;
+    #endif // GENERATE_SIMPLE
     #if DEBUG_ADDRESS
       fprintf(stderr,"DATA START %p END %p\n",(void*)data,(void*)(data+sizeof data));
       struct sigaction a;
