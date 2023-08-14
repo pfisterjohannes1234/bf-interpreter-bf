@@ -13,7 +13,74 @@ class SyntaxError(Exception):
   def __str__(self):
     return "Error on line "+str(self.line)+": "+self.text+" Statements: "+str(self.statements)
 
-whileOffsets=[]
+class Output(object):
+  def __init__(self,out=sys.stdout):
+    self.out=out
+    self.currentOffset=0
+    self.currentAdd=0
+    self.whileOffsets=[]
+    self.shouldPrintNewline=0
+  def _printAdd(self):
+    "Print the + and - for the current position. Print nothing when we don't need to"
+    print( ('+' if self.currentAdd>0 else '-')*abs(self.currentAdd), end='', file=self.out )
+    if self.currentAdd :
+      print("\n"*self.shouldPrintNewline, end='', file=self.out)
+      self.shouldPrintNewline=0
+    self.currentAdd=0
+  def _printOffset(self):
+    "Print the > and < for the current position. Print nothing when we don't need to"
+    print( ('>' if self.currentOffset>0 else '<')*abs(self.currentOffset), end='', file=self.out )
+    if self.currentOffset :
+      print("\n"*self.shouldPrintNewline, end='', file=self.out)
+      self.shouldPrintNewline=0
+    self.currentOffset=0
+  def goto(self,offset):
+    if offset:
+      self._printAdd()
+    self.currentOffset = self.currentOffset + offset
+  def add(self,n):
+    if n:
+      self._printOffset()
+    self.currentAdd = self.currentAdd + n
+  def flush(self):
+    self._printOffset()
+    self._printAdd()
+  def command(self,command):
+    self.flush()
+    print(command, end='', file=self.out)
+  def nextLine(self):
+    self.shouldPrintNewline = self.shouldPrintNewline+1
+
+  def commandOffset(self,command,offset):
+    self.goto(offset)
+    self.command(command)
+    self.goto(-offset)
+  def startWhile(self,offset):
+    self.commandOffset('[',offset)
+    self.whileOffsets.append(offset)
+  def endWhile(self):
+    offset=self.whileOffsets.pop()
+    self.commandOffset(']',offset)
+  def setValue(self,offset,value):
+    command = '[-]'+('+' if value>0 else '-')*abs(value)
+    self.commandOffset(command,offset)
+  def copyValue(self,sourceOffset,targetOffset,temporaryOffset):
+    self.commandOffset('[-]',targetOffset)
+
+    self.commandOffset('[-',sourceOffset)
+    self.commandOffset('+',temporaryOffset)
+    self.commandOffset('+',targetOffset)
+    self.commandOffset(']',sourceOffset)
+
+    self.commandOffset('[-',temporaryOffset)
+    self.commandOffset('+',sourceOffset)
+    self.commandOffset(']',temporaryOffset)
+
+  def addOffset(self,offset,value):
+    self.goto(offset)
+    self.add(value)
+    self.goto(-offset)
+
 
 def getAccessOffset(statements):
   if len(statements)<4:
@@ -45,11 +112,8 @@ def getAccessOffset(statements):
       raise SyntaxError("data[...] with unknown statement"+str(statements[0]),statements)
 
 
-def goto(offset):
-  if offset>0:
-    print('>'*offset,end='')
-  if offset<0:
-    print('<'*-offset,end='')
+
+output=Output()
 
 
 
@@ -60,9 +124,7 @@ def handleWriteChar(statements):
   offset,statements = getAccessOffset(statements[2:-1])
   if len(statements):
     raise SyntaxError("Found additional data after write_char ( data[...] ) ",statements)
-  goto(offset)
-  print('.',end='')
-  goto(-offset)
+  output.commandOffset('.',offset)
 
 def handleWhile(statements):
   if len(statements)<4:
@@ -77,18 +139,12 @@ def handleWhile(statements):
   offset,statements = getAccessOffset(statements[2:-1])
   if len(statements):
     raise SyntaxError("Found additional data after while (...) ",statements)
-  goto(offset)
-  print('[',end='')
-  goto(-offset)
-  whileOffsets.append(offset)
+  output.startWhile(offset)
 
 def endWhile(statements):
   if len(statements)>1:
     raise SyntaxError("Found } with extra, unexpected data",statements)
-  offset=whileOffsets.pop()
-  goto(offset)
-  print(']',end='')
-  goto(-offset)
+  output.endWhile()
 
 
 def handleAssignment(statements):
@@ -100,23 +156,23 @@ def handleAssignment(statements):
   if statements[0]=='data':
     targetOffset,statements = getAccessOffset(statements)
   elif statements[0]=='p':
-    setP=1;
+    setP=1
     statements = statements[1:]
     if len(statements)==2:
       if statements[0]=='+' and statements[1]=='+':
-        print('+',end='')
+        output.add(1)
         return
       if statements[0]=='-' and statements[1]=='-':
-        print('-',end='')
+        output.add(-1)
         return
   elif statements[0]=='write_char':
-    handleWriteChar(statements);
+    handleWriteChar(statements)
     return
   else:
     raise SyntaxError("Unknwon how to handle "+statements[0],statements)
 
 
-  add=0;
+  add=0
   startOffset=None
   if len(statements)<2:
     raise SyntaxError("not enough elements for assignment",statements)
@@ -132,20 +188,20 @@ def handleAssignment(statements):
     statements=[]
   else:
     statements=statements[1:]
-  
-  
+
+
     if statements[0]=='data':
       if setP:
         raise SyntaxError("can not set p from data",statements)
       startOffset,statements = getAccessOffset(statements)
-  
+
     elif statements[0]=='p':
       if not setP:
         raise SyntaxError("can not set data from p",statements)
       statements=statements[1:]
 
 
-  isReadChar=0;
+  isReadChar=0
   while len(statements):
     if statements[0] in '0123456789':
       if add or isReadChar:
@@ -154,7 +210,7 @@ def handleAssignment(statements):
       statements=statements[1:]
 
     elif statements[0]=='+' or statements[0]=='-':
-      isAddition = statements[0]=='+' 
+      isAddition = statements[0]=='+'
       n=0
       if len(statements)<2:
         raise SyntaxError("Expected something after +",statements)
@@ -187,7 +243,7 @@ def handleAssignment(statements):
   if setP:
     if targetOffset is not None or startOffset is not None or isReadChar:
       raise SyntaxError("can not set p from data"+statements[0],statements)
-    goto(add)
+    output.goto(add)
     return
 
   if targetOffset is None:
@@ -196,51 +252,24 @@ def handleAssignment(statements):
   if isReadChar:
     if startOffset is not None:
       raise SyntaxError("can not add read_char() with data ",statements)
-    goto(targetOffset)
-    print(',',end="")
-    goto(-targetOffset)
+    output.commandOffset(',',targetOffset)
     return
 
 
   if startOffset is None:
-    goto(targetOffset)
-    print('[-]'+('+' if add>0 else '-')*abs(add),end='')
-    goto(-targetOffset)
+    output.setValue(targetOffset,add)
     return
 
   if startOffset == targetOffset:
-    goto(targetOffset)
-    print( ('+' if add>0 else '-')*abs(add), end='' )
-    goto(-targetOffset)
+    output.addOffset(targetOffset,add)
     return
 
   #Copy a cell to target cell and to cell with offset 7
   #After that we copy cell 7 to source cell
   #And after that we may need to add/substract a fixed value
-  goto(targetOffset)
-  print('[-]', end='')
-  goto(-targetOffset+startOffset)
-  print('[', end='')
-  print('-', end='')
-  goto(-startOffset+7)
-  print('+', end='')
-  goto(-7+targetOffset)
-  print('+', end='')
-  goto(-targetOffset+startOffset)
-  print(']', end='')
-  goto(+7-startOffset)
-  print('[', end='')
-  print('-', end='')
-  goto(-7+startOffset)
-  print('+', end='')
-  goto(-startOffset+7)
-  print(']', end='')
+  output.copyValue(startOffset,targetOffset,7)
   if add:
-    goto(targetOffset-7)
-    print(('+' if add>0 else '-')*abs(add), end='')
-    goto(-targetOffset)
-  else:
-    goto(-7)
+    output.addOffset(targetOffset,add)
 
 
 
@@ -273,7 +302,7 @@ for line,i in enumerate(sys.stdin):
       if '\n' in e:
         line =1
       statement = addElementStatement(statement,e)
-      if line: print("")
+      if line: output.nextLine()
   except SyntaxError as e:
     e.setLine(line+1)
     raise
@@ -284,4 +313,7 @@ try:
 except SyntaxError as e:
   e.setLine(line)
   raise
+
+output.flush()
+
 
