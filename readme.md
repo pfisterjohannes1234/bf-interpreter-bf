@@ -9,29 +9,43 @@ It can interpret itself, but very slow (as somewhat expected)
 The interpreter / compiler that interprets this brainfuck interpreter (the interpreter of the
  interpreter) needs at least this requirements:
 
-- Support the 8 brainfuck commands ( . , [ ] < > + - )
-- A cell needs to be able to hold at least all characters used for brainfuck in ASCII
-- A cell needs to have a limitied maximum. 8 bit cells is recommended. The brainfuck code [-]
-   must be able to set a cell of any value to 0, including when the cell was "negative"
-- Support for enough cells and data. Depending in the program we are interpret, we only need cells
-   to the rigth (using more > than <)
+- Support for the 8 brainfuck commands ( `.` `,` `[` `]` `<` `>` `+` `-` )
+- A cell needs to be able to hold at least all characters used for brainfuck in ASCII. i.e. Large
+   enough to hold the value 62 which is used to represent a `]`.
+- A cell needs to have a limitied maximum. 7 bit or 8 bit cells is recommended. The brainfuck
+   code `[-]` must be able to set a cell of any value to 0, including when the cell was "negative".
+   i.e. When the current cell has the value 0 and we execute this code `-[-]`, the loop must end and
+   should not be stuck forever counting towards negative infinity.
+   A smaller cell maximum is probably faster.
+- Decreasing a cell value of 0 should wrap arround and end in the maximum cell value. i.e. Executing
+   `-` N times on a cell should only result in a 0 if the initial value of the cell was N, assuming
+   N is not larger than 62 (Or `']'`)
+- Support for enough cells and code length. Depending in the program we are interpret, we only need
+   cells to the rigth (using more > than <). We need max( (2+N)\*8, M\*8 ) cells for data where N
+   is the length of the program we are interpreting and M is the amount of cells the interpreted
+   Program is using, assuming the interpreted program only uses cells to the right.
 - Initial value of all cells has to be 0
 
 
-The minimum amount of cells needed are:
-Per byte in the program we interpret we need 8 cells, and 16 cells on top of that.
-This are all to the right (>) dirrection from the start.
+## Features provided for the brainfuck program we interpret
 
-And then there are 8 cells needed for every cell the interpreted program touches. This can overlap
- with the cells used for the program code (so you only have to count them once).
+The brainfuck interpreter in brainfuck provides this features:
+
+- Support for the 8 brainfuck commands ( `.` `,` `[` `]` `<` `>` `+` `-` )
+- Ignores code characters that are not a brainfuck command (but that hurts performance)
+- Same cell limits as the interpreter of the interpreter provides.
+- Arbitary code length and data length is supported, if the interpreter of the interpreter supports
+   enough data / cells.
+- Same EOF (end of file) behaviour as the interpreter of the interpreter.
 
 
 ## Input
 
-This brainfuck interpreter expects a valid brainfuck program given via stdin (or whatever , is using
- followed by a 0-byte ('\0') to mark the end of the code. After that comes data the interpreted
- can use.
-
+This brainfuck interpreter expects a valid brainfuck program given via stdin (or whatever , is
+ reading from) followed by a 0-byte ('\0') to mark the end of the code. After that comes data the
+ interpreted can use.
+If there is no 0-byte and the the EOF-value is also not 0, the interpreter will be stuck in a 
+ infinite loop.
 
 ## Example input
 
@@ -54,13 +68,13 @@ Output 99 bottles of beer
 
     cat ./data/99.bf <(echo -en '\0\0') | someBrainfuckInterpreter interpret.bf
 
-To let this interpreter interpret itself (use interpret_minimal.bf since it is a bit shorter and
+To let this interpreter interpret itself (use `interpret_minimal.bf` since it is a bit shorter and
  every tiny bit helps. But it is slow anyway). This outputs one byte of value 2.
 
     cat interpret_minimal.bf <(echo -en '\0++.\0\0') | someBrainfuckInterpreter interpret_minimal.bf | xxd
 
 
-You can also try this (takes about 23 min on my AMD Zen 2 CPU). It should output "Hello World!\n":
+You can also try this. It should output "Hello World!\n":
 
     cat interpret_minimal.bf <(echo -en '\0') ./data/hello.bf <( echo -en '\0') | someBrainfuckInterpreter interpret_minimal.bf
 
