@@ -59,36 +59,38 @@ If there is no 0-byte and the the EOF-value is also not 0, the interpreter will 
 Examples how you may use this interpreter in bash or similar shell.
 For that you can use the example brainfuck programs in the folder data
 
-You have to find, write ... a brainfuck interpreter first.
+You can use your own brainfuck interpreter or the one in ./tools/bf (you may have to compile it
+ first)
 
 
 Interpret a very simple program that adds 3 to a cell and then outputs it. Use xxd to see the
  (binary) output of a byte with value 3
 
-    echo -ne '+++.\0\0' | someBrainfuckInterpreter interpret.bf | xxd
+    echo -ne '+++.\0\0' | ./tools/bf interpret.bf | xxd
 
 The brainfuck program reverse.bf reads a input and print it in reverse. This should output "GFEDCBA\n"
 
-    cat ./data/reverse.bf <(echo -en '\0\nABCDEFG\0') | someBrainfuckInterpreter interpret.bf
+    cat ./data/reverse.bf <(echo -en '\0\nABCDEFG\0') | ./tools/bf interpret.bf
 
 Output 99 bottles of beer
 
-    cat ./data/99.bf <(echo -en '\0\0') | someBrainfuckInterpreter interpret.bf
+    cat ./data/99.bf <(echo -en '\0\0') | ./tools/bf interpret.bf
 
 To let this interpreter interpret itself (use `interpret_minimal.bf` since it is a bit shorter and
  every tiny bit helps. But it is slow anyway). This outputs one byte of value 2.
 
-    cat interpret_minimal.bf <(echo -en '\0++.\0\0') | someBrainfuckInterpreter interpret_minimal.bf | xxd
+    cat interpret_minimal.bf <(echo -en '\0++.\0\0') | ./tools/bf interpret_minimal.bf | xxd
 
 
 You can also try this. It should output "Hello World!\n":
 
-    cat interpret_minimal.bf <(echo -en '\0') ./data/hello.bf <( echo -en '\0') | someBrainfuckInterpreter interpret_minimal.bf
+    cat interpret_minimal.bf <(echo -en '\0') ./data/hello.bf <( echo -en '\0') | ./tools/bf interpret_minimal.bf
 
 
 ## Licence
 
 The interpreter is public domain.
-The example brainfuck programs in the folder data have various licences, some of them where found
+And so are the tools in the folder ./tools/
+The example brainfuck programs in the folder ./data/ have various licences, some of them where found
  without any licence information.
 

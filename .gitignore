@@ -2,3 +2,5 @@
 /interpret_.c
 /interpret.bf
 /interpret_minimal.bf
+/tools/bf
+/tools/simplify
