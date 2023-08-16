@@ -3,6 +3,13 @@ This is a brainfuck interpreter written in brainfuck.
 Goal was it to have a brainfuck interpreter written in brainfuck that can interpret itself.
 It can interpret itself, but very slow (as somewhat expected)
 
+## Create brainfuck code
+
+Run the bash script `./generate.sh` to generate the brainfuck interpreter written in brainfuck:
+ `interpret.bf` and `interpret_minimal.bf`.
+You need bash, tr, python3 and gcc to create this files. Optional astyle to reformat the gcc
+ preprocessor output, after macros where expanded.
+
 
 ## Requirements for the interpreter / compiler
 
@@ -44,7 +51,7 @@ The brainfuck interpreter in brainfuck provides this features:
 This brainfuck interpreter expects a valid brainfuck program given via stdin (or whatever , is
  reading from) followed by a 0-byte ('\0') to mark the end of the code. After that comes data the
  interpreted can use.
-If there is no 0-byte and the the EOF-value is also not 0, the interpreter will be stuck in a 
+If there is no 0-byte and the the EOF-value is also not 0, the interpreter will be stuck in a
  infinite loop.
 
 ## Example input
