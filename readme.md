@@ -4,7 +4,7 @@ Goal was it to have a brainfuck interpreter written in brainfuck that can interp
 It can interpret itself, but very slow (as somewhat expected)
 
 
-#Requirements for the interpreter / compiler
+## Requirements for the interpreter / compiler
 
 The interpreter / compiler that interprets this brainfuck interpreter (the interpreter of the
  interpreter) needs at least this requirements:
@@ -26,14 +26,14 @@ And then there are 8 cells needed for every cell the interpreted program touches
  with the cells used for the program code (so you only have to count them once).
 
 
-#Input
+## Input
 
 This brainfuck interpreter expects a valid brainfuck program given via stdin (or whatever , is using
  followed by a 0-byte ('\0') to mark the end of the code. After that comes data the interpreted
  can use.
 
 
-#Example input
+## Example input
 
 Examples how you may use this interpreter in bash or similar shell.
 For that you can use the example brainfuck programs in the folder data
@@ -65,7 +65,7 @@ You can also try this (takes about 23 min on my AMD Zen 2 CPU). It should output
     cat interpret_minimal.bf <(echo -en '\0') ./data/hello.bf <( echo -en '\0') | someBrainfuckInterpreter interpret_minimal.bf
 
 
-#Licence
+## Licence
 
 The interpreter is public domain.
 The example brainfuck programs in the folder data have various licences, some of them where found
