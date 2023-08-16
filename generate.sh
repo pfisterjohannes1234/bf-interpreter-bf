@@ -21,7 +21,7 @@ gcc -DGENERATE_SIMPLE=1 -E interpret.c | grep -v '^#' > interpret_.c
 #Format the code. Not needed but can it make easier to debug the resulting brainfuck code in
 # case we use a brainfuck interpreter that can output debug information including line number
 #Since it it optional, we ignore any error (including command not found)
-astyle --style=gnu --indent=spaces=2 --add-brackets --indent-preproc-cond ./interpret_.c -n || true
+astyle --style=gnu --indent=spaces=2 ./interpret_.c -n || true
 
 #Create the brainfuck interpreter written in brainfuck, by converting the "simpler" c code
 python3 ./convert.py < ./interpret_.c > interpret.bf
