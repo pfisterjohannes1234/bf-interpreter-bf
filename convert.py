@@ -168,6 +168,8 @@ def getAccessOffset(statements):
 
 
 output=Output()
+#Which offset we use to store a temporary variable. We need such a cell to copy a value
+temporaryCellOffset=1
 
 
 def handleWriteChar(statements):
@@ -326,10 +328,10 @@ def handleExpression(statements):
     output.addOffset(targetOffset,add)
     return
 
-  #Copy a cell to target cell and to cell with offset 7
-  #After that we copy cell 7 to source cell
+  #Copy a cell to target cell and to cell with offset temporaryCellOffset
+  #After that we copy cell with temporaryCellOffset to source cell
   #And after that we may need to add/substract a fixed value
-  output.copyValue(startOffset,targetOffset,7)
+  output.copyValue(startOffset,targetOffset,temporaryCellOffset)
   if add:
     output.addOffset(targetOffset,add)
 

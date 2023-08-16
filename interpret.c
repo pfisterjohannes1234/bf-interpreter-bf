@@ -167,6 +167,17 @@ void catch_pagefault(int signal, siginfo_t *i, void *ignored)
 
 #endif // !GENERATE_SIMPLE
 
+//OS means offset
+#define OS_CODE  0 //Contains code
+#define OS_TEMP  1 //Temporary cell to copy data, used in convert.py and not here. Don't touch this
+#define OS_EQU0  2 //to convert ==0 to !=0
+#define OS_DATA  3 //Contains data
+#define OS_DEEP  4 //How deep inside [] we are
+#define OS_GODL  5 //1 if data is to the left
+#define OS_GOCL  6 //1 if code is to the left
+#define OS_IF_W  7 //To replace if with while
+
+
 /*
 data contains almost all data.
 It is split up into blocks.
@@ -174,27 +185,28 @@ A block is STEP elements big
 It is bascially a 1D array that is used as 2D array.
 
 +-----+
-|code | data[n*STEP+0] contains code
+|code | OS_CODE data[n*STEP+0] contains code
 +-----+
-| ==0 | data[n*STEP+1] intendet to convert while(...==0) to while(...!=0).
-|     |  Sometimes combined with n*STEP+6
+|temp | OS_TEMP data[n*STEP+1] used to copy variables. Don't use it here. see convert.py
 +-----+
-|data | data[n*STEP+2] contains user data
+| ==0 | OS_EQU0 data[n*STEP+2] intendet to convert while(...==0) to while(...!=0).
+|     |  Sometimes combined with OS_IF_W  n*STEP+7
 +-----+
-| []  | data[n*STEP+3] used to jump between [ and ]
+|data | OS_DATA data[n*STEP+3] contains user data
 +-----+
-|<data| data[n*STEP+4] filled with 1 from data pointer to the code pointer
+| []  | OS_DEEP data[n*STEP+4] used to jump between [ and ]
++-----+
+|<data| OS_GODL data[n*STEP+5] filled with 1 from data pointer to the code pointer. GO Data Left.
 | 1/0 |  when both point to the same block, all are 0
 |     |  when code pointer is before the data pointer, all are 0
 +-----+
-|code>| data[n*STEP+5] filled with 1 from code pointer to the data pointer
+|code>| OS_GOCL data[n*STEP+6] filled with 1 from code pointer to the data pointer. GO Data Left.
 | 1/0 |  when both point to the same block, all are 0.
 |     |  when data pointer is before the code pointer, all are 0
 +-----+
-|  ?  | data[n*STEP+6] intendet to convert if to while. All while( data[p*STEP+6] ) means
-|     |  if( data[p*STEP+6] ).  Sometimes combined with n*STEP+1
-+-----+
-|  ?  | data[n*STEP+7] used to copy variables. see convert.py
+|while| OS_IF_W data[n*STEP+7] intendet to convert if to while. All while( data[p+OS_IF_W] ) means
+|to if|  if( data[p+OS_IF_W] ), because we set data[p+OS_IF_W] to 0 before the end.
+|     | Sometimes combined with OS_EQU0 n*STEP+2
 +-----+
 
 
@@ -211,15 +223,15 @@ But we only have access to a single array as data and we always point to exactly
 
 Maybe it would be possible to store a index in a cell and use a specific amount of < or >
  to go to the correct position. But that sounds complicated for infinite arrays so we don't do that.
-Instead, we use 2 cells per block to indicate if the current data position is to the left of the 
+Instead, we use 2 cells per block to indicate if the current data position is to the left of the
  current position or not, i.e. if the data pointer points to a block that is further to the left
  (left means index is lower/smaller).
 Similar, there is 1 cell per block that indicates if the the current code pointer is to the left.
 
-n*STEP + 4 is filled with some 1 when the data pointer points left of where the code pointer points
+p+OS_GODL is filled with some 1 when the data pointer points left of where the code pointer points
  to. And all 0 in every other case
 
-n*STEP + 5 is filled with some 1 when the code pointer points left of where the data pointer points
+p+OS_GOCL is filled with some 1 when the code pointer points left of where the data pointer points
  to. And all 0 in every other case
 
 There are 3 different possibilites which is drawn in the following ASCII art.
@@ -271,15 +283,6 @@ State C: Data pointer is to the left of the code pointer:
 
 
 */
-
-//OS means offset
-#define OS_CODE  0 //Contains code
-#define OS_EQU0  1 //to convert ==0 to !=0
-#define OS_DATA  2 //Contains data
-#define OS_DEEP  3 //How deep inside [] we are
-#define OS_GODL  4 //1 if data is to the left
-#define OS_GOCL  5 //1 if code is to the left
-#define OS_IF_W  6 //To replace if with while
 
 //Used to change between while(n!=0) and while(n)
 //The later is simpler and should in theory be prefered. But c2bf doesn't support that for some
@@ -456,7 +459,7 @@ int main()
     #else
       //To avoid moving to the left from the start (only works when interpetet code also
       // doesn't move more left then the start)
-      //We move one block so that the value in this blocks stays 0 and when we go back, after 
+      //We move one block so that the value in this blocks stays 0 and when we go back, after
       // reading the complete code, we stop here without ever touching negative cells (cells that
       // have a lower index than the start cell)
       p=p+STEP;
